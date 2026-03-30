@@ -281,11 +281,13 @@ export default function Home() {
   const [showPrePurchase, setShowPrePurchase] = useState(false);
   const [showPaymentSheet, setShowPaymentSheet] = useState(false);
   const [showPossibleItems, setShowPossibleItems] = useState(false);
+  const [showWalletPasswordPrompt, setShowWalletPasswordPrompt] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
   const [showOdds, setShowOdds] = useState(false);
   const [isPageBooting, setIsPageBooting] = useState(true);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("wallet");
+  const [walletPassword, setWalletPassword] = useState("");
   const [authToken] = useState(() => getTokenFromSearchParams());
   const [transactionConfirmed, setTransactionConfirmed] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -550,13 +552,14 @@ export default function Home() {
   );
 
   const initializePaymentForOrder = useCallback(
-    async (orderId: number, method: PaymentMethod) => {
+    async (orderId: number, method: PaymentMethod, password?: string) => {
       const initializePayload = await apiRequest("/payment/initialize", {
         token: authToken,
         method: "POST",
         body: JSON.stringify({
           order_id: orderId,
           payment_method: method === "wallet" ? null : method,
+          ...(method === "wallet" && password ? { password } : {}),
         }),
       });
 
@@ -571,6 +574,12 @@ export default function Home() {
     },
     [authToken],
   );
+
+  const handleSelectWallet = useCallback(() => {
+    setPaymentMethod("wallet");
+    setApiMessage(null);
+    setShowWalletPasswordPrompt(true);
+  }, []);
 
   const settlePaidOrder = useCallback(async (orderId: number | null, reference?: string | null) => {
     let revealPayload: unknown = null;
@@ -710,17 +719,71 @@ export default function Home() {
     setRewards([]);
     setTransactionConfirmed(false);
     setAcceptedTerms(false);
+    setWalletPassword("");
     setApiMessage(null);
     setPendingOrderId(null);
     setPendingOrderMethod(null);
     setPendingReference(null);
     setShareRevealToken(null);
     setNeedsGatewayVerification(false);
+    setShowWalletPasswordPrompt(false);
     setShowPrePurchase(true);
   };
 
+  const submitWalletPayment = useCallback(async () => {
+    const trimmedPassword = walletPassword.trim();
+
+    if (!acceptedTerms) {
+      setApiMessage("Agree to the Terms & Conditions before using wallet payment.");
+      return;
+    }
+
+    if (!trimmedPassword) {
+      setApiMessage("Enter your wallet password to continue.");
+      return;
+    }
+
+    setIsProcessing(true);
+    setApiMessage(null);
+
+    try {
+      const orderId = await ensureOrderForMethod("wallet");
+      setShowWalletPasswordPrompt(false);
+      setShowPrePurchase(false);
+
+      const { reference } = await initializePaymentForOrder(orderId, "wallet", trimmedPassword);
+      await settlePaidOrder(orderId, reference);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unable to process wallet payment.";
+      setApiMessage(errorMessage);
+      showInsufficientWalletToast(errorMessage);
+      showAddressErrorToast(errorMessage);
+      setIsProcessing(false);
+      setShowWalletPasswordPrompt(true);
+    }
+  }, [
+    acceptedTerms,
+    ensureOrderForMethod,
+    initializePaymentForOrder,
+    settlePaidOrder,
+    showAddressErrorToast,
+    showInsufficientWalletToast,
+    walletPassword,
+  ]);
+
   const handleProceedToPayment = async () => {
     if (!canPay) return;
+
+    if (paymentMethod === "wallet" && !walletPassword.trim()) {
+      setShowWalletPasswordPrompt(true);
+      return;
+    }
+
+    if (paymentMethod === "wallet") {
+      await submitWalletPayment();
+      return;
+    }
 
     setIsProcessing(true);
     setApiMessage(null);
@@ -728,12 +791,6 @@ export default function Home() {
     try {
       const orderId = await ensureOrderForMethod(paymentMethod);
       setShowPrePurchase(false);
-
-      if (paymentMethod === "wallet") {
-        const { reference } = await initializePaymentForOrder(orderId, "wallet");
-        await settlePaidOrder(orderId, reference);
-        return;
-      }
 
       setShowPaymentSheet(true);
       setApiMessage("Order created. Click below to initialize your payment gateway.");
@@ -803,12 +860,14 @@ export default function Home() {
     setRewards([]);
     setTransactionConfirmed(false);
     setAcceptedTerms(false);
+    setWalletPassword("");
     setApiMessage(null);
     setPendingOrderId(null);
     setPendingOrderMethod(null);
     setPendingReference(null);
     setShareRevealToken(null);
     setNeedsGatewayVerification(false);
+    setShowWalletPasswordPrompt(false);
   };
 
   return (
@@ -969,7 +1028,7 @@ export default function Home() {
             <div className="mt-2 grid grid-cols-2 gap-3">
               <button
                 type="button"
-                onClick={() => setPaymentMethod("wallet")}
+                onClick={handleSelectWallet}
                 className={`rounded-xl px-3 py-2.5 text-sm font-semibold ${
                   paymentMethod === "wallet"
                     ? "bg-[#f97316] text-white"
@@ -1044,6 +1103,63 @@ export default function Home() {
                 className="w-full rounded-xl bg-[#f97316] px-4 py-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Pay & Open Now
+              </button>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {showWalletPasswordPrompt ? (
+        <section className="fixed inset-0 z-40 flex items-end justify-center bg-black/70 p-4 backdrop-blur-sm sm:items-center">
+          <div className="w-full max-w-sm rounded-[24px] border border-white/15 bg-[#0f172a] p-5 text-white shadow-[0_30px_70px_-35px_rgba(0,0,0,0.8)]">
+            <h2 className="text-xl font-bold text-[#fb923c]">Wallet Password</h2>
+            <p className="mt-2 text-sm leading-6 text-[#dbeafe]">
+              Enter your Aurelius account password to continue with wallet payment.
+            </p>
+
+            {apiMessage ? (
+              <p className="mt-3 rounded-xl bg-[#172554] p-3 text-xs leading-5 text-[#dbeafe]">
+                {apiMessage}
+              </p>
+            ) : null}
+
+            <label className="mt-4 block text-sm font-semibold text-[#bfdbfe]">
+              Password
+              <input
+                type="password"
+                value={walletPassword}
+                onChange={(event) => setWalletPassword(event.target.value)}
+                placeholder="Enter password"
+                autoFocus
+                disabled={isProcessing}
+                className="mt-2 w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white outline-none placeholder:text-[#94a3b8] focus:border-[#fb923c]"
+              />
+            </label>
+
+            <div className="mt-5 flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isProcessing) return;
+                  setShowWalletPasswordPrompt(false);
+                  if (!walletPassword.trim()) {
+                    setPaymentMethod("paystack");
+                  }
+                }}
+                disabled={isProcessing}
+                className="w-full rounded-xl border border-white/20 px-4 py-3 text-sm font-semibold text-[#dbeafe]"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void submitWalletPayment();
+                }}
+                disabled={isProcessing}
+                className="w-full rounded-xl bg-[#f97316] px-4 py-3 text-sm font-extrabold text-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isProcessing ? "Submitting..." : "Submit"}
               </button>
             </div>
           </div>
