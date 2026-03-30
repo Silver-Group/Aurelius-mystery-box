@@ -265,6 +265,15 @@ async function apiRequest<T>(
     ? await response.json()
     : await response.text();
 
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      window.alert("You need to log in to continue.");
+      window.location.replace(AUTH_REDIRECT_URL);
+    }
+
+    throw new Error("Authentication required.");
+  }
+
   if (!response.ok) {
     const message =
       typeof payload === "object" && payload && "message" in payload
