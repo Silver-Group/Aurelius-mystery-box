@@ -783,8 +783,8 @@ export default function Home() {
 
   const handleShareWhatsApp = () => {
     const shareUrl = shareRevealToken
-      ? `${window.location.origin}/r/${encodeURIComponent(shareRevealToken)}`
-      : null;
+      ? `https://app.aureliushq.co/register`
+      : "https://app.aureliushq.co/register";
     const message = shareUrl
       ? `Just opened my Aurelius Mystery Box! 🎁 and it was totally worth it. 🥘 Since you like good deals, you should check out their Mystery Box, they’re giving away iPhones 14 Pro Max too! Try it: ${shareUrl}`
       : "Just opened my Aurelius Mystery Box! 🎁 and it was totally worth it. 🥘 Since you like good deals, you should check out their Mystery Box, they’re giving away iPhones 14 Pro Max too!";
