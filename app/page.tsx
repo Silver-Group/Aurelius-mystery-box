@@ -17,8 +17,8 @@ const WALLET_PRICE = 48500;
 const DEFAULT_ODDS_COPY = "Illustrative odds: 85% Grocery Bundle, 10% Mega Bundle, 5% Tech Prize.";
 const DEFAULT_API_TOKEN = "";
 const API_BASE_URL =
-  process.env.NEXT_PUBLIC_MYSTERY_BOX_API_BASE_URL ?? "https://test.aureliushq.co/api/mystery-box";
-const AUTH_REDIRECT_URL = "https://test.aureliushq.co";
+  process.env.NEXT_PUBLIC_MYSTERY_BOX_API_BASE_URL ?? "https://app.aureliushq.co/api/mystery-box";
+const AUTH_REDIRECT_URL = "https://app.aureliushq.co";
 const INITIAL_ENTRY_LOADING_MS = 5000;
 const REVEAL_COUNTDOWN_STEP_MS = 3000;
 const REVEAL_COUNTDOWN_STEPS = 3;
